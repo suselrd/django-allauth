@@ -1,12 +1,17 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
+from __future__ import unicode_literals
 
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.utils.importlib import import_module
 from django.test.client import RequestFactory
 from django.test.utils import override_settings
 from django.core import mail
+
+try:
+    from importlib import import_module
+except ImportError:
+    from django.utils.importlib import import_module
 
 from allauth.socialaccount.tests import create_oauth2_tests
 from allauth.account import app_settings as account_settings
@@ -47,8 +52,8 @@ class GoogleTests(create_oauth2_tests(registry.by_id(GoogleProvider.id))):
                (repr(verified_email).lower())))
 
     def test_username_based_on_email(self):
-        first_name = u'明'
-        last_name = u'小'
+        first_name = '明'
+        last_name = '小'
         email = 'raymond.penners@gmail.com'
         self.login(self.get_mocked_response(name=first_name + ' ' + last_name,
                                             email=email,

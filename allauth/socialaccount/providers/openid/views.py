@@ -19,6 +19,7 @@ from .utils import (DBOpenIDStore, SRegFields, AXAttributes,
                     JSONSafeSession)
 from .forms import LoginForm
 from .provider import OpenIDProvider
+from ..base import AuthError
 
 
 def _openid_consumer(request):
@@ -29,7 +30,9 @@ def _openid_consumer(request):
 
 def login(request):
     if 'openid' in request.GET or request.method == 'POST':
-        form = LoginForm(request.REQUEST)
+        form = LoginForm(
+            dict(list(request.GET.items()) + list(request.POST.items()))
+        )
         if form.is_valid():
             client = _openid_consumer(request)
             try:
@@ -57,7 +60,10 @@ def login(request):
                 if request.method == 'POST':
                     form._errors["openid"] = form.error_class([e])
                 else:
-                    return render_authentication_error(request)
+                    return render_authentication_error(
+                        request,
+                        OpenIDProvider.id,
+                        exception=e)
     else:
         form = LoginForm(initial={'next': request.GET.get('next'),
                                   'process': request.GET.get('process')})
@@ -70,7 +76,7 @@ def login(request):
 def callback(request):
     client = _openid_consumer(request)
     response = client.complete(
-        dict(request.REQUEST.items()),
+        dict(list(request.GET.items()) + list(request.POST.items())),
         request.build_absolute_uri(request.path))
     if response.status == consumer.SUCCESS:
         login = providers.registry \
@@ -78,8 +84,13 @@ def callback(request):
             .sociallogin_from_response(request, response)
         login.state = SocialLogin.unstash_state(request)
         ret = complete_social_login(request, login)
-    elif response.status == consumer.CANCEL:
-        ret = HttpResponseRedirect(reverse('socialaccount_login_cancelled'))
     else:
-        ret = render_authentication_error(request)
+        if response.status == consumer.CANCEL:
+            error = AuthError.CANCELLED
+        else:
+            error = AuthError.UNKNOWN
+        ret = render_authentication_error(
+            request,
+            OpenIDProvider.id,
+            error=error)
     return ret

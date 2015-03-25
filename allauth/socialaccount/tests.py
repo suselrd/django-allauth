@@ -41,7 +41,7 @@ def create_oauth_tests(provider):
     @override_settings(SOCIALACCOUNT_AUTO_SIGNUP=False)
     def test_login(self):
         resp_mocks = self.get_mocked_response()
-        if not resp_mocks:
+        if resp_mocks is None:
             warnings.warn("Cannot test provider %s, no oauth mock"
                           % self.provider.id)
             return
@@ -49,14 +49,16 @@ def create_oauth_tests(provider):
         self.assertRedirects(resp, reverse('socialaccount_signup'))
         resp = self.client.get(reverse('socialaccount_signup'))
         sociallogin = resp.context['form'].sociallogin
-        data = dict(email=user_email(sociallogin.account.user),
+        data = dict(email=user_email(sociallogin.user),
                     username=str(random.randrange(1000, 10000000)))
         resp = self.client.post(reverse('socialaccount_signup'),
                                 data=data)
         self.assertEqual('http://testserver/accounts/profile/',
                          resp['location'])
-        self.assertFalse(resp.context['user'].has_usable_password())
-        return sociallogin.account
+        user = resp.context['user']
+        self.assertFalse(user.has_usable_password())
+        return SocialAccount.objects.get(user=user,
+                                         provider=self.provider.id)
 
     @override_settings(SOCIALACCOUNT_AUTO_SIGNUP=True,
                        SOCIALACCOUNT_EMAIL_REQUIRED=False,
@@ -85,19 +87,22 @@ def create_oauth_tests(provider):
         complete_url = reverse(self.provider.id+'_callback')
         self.assertGreater(q['oauth_callback'][0]
                            .find(complete_url), 0)
-        with mocked_response(MockedResponse(200,
-                                            'oauth_token=token&'
-                                            'oauth_token_secret=psst',
-                                            {'content-type':
-                                             'text/html'}),
+        with mocked_response(self.get_access_token_response(),
                              *resp_mocks):
             resp = self.client.get(complete_url)
         return resp
 
+    def get_access_token_response(self):
+        return MockedResponse(
+            200,
+            'oauth_token=token&oauth_token_secret=psst',
+            {'content-type': 'text/html'})
+
     impl = {'setUp': setUp,
             'login': login,
             'test_login': test_login,
-            'get_mocked_response': get_mocked_response}
+            'get_mocked_response': get_mocked_response,
+            'get_access_token_response': get_access_token_response}
     class_name = 'OAuth2Tests_'+provider.id
     Class = type(class_name, (TestCase,), impl)
     Class.provider = provider
@@ -231,8 +236,8 @@ class SocialAccountTests(TestCase):
         setattr(user, account_settings.USER_MODEL_USERNAME_FIELD, 'test')
         setattr(user, account_settings.USER_MODEL_EMAIL_FIELD, 'test@test.com')
 
-        account = SocialAccount(user=user, provider='openid', uid='123')
-        sociallogin = SocialLogin(account)
+        account = SocialAccount(provider='openid', uid='123')
+        sociallogin = SocialLogin(user=user, account=account)
         complete_social_login(request, sociallogin)
 
         user = User.objects.get(

@@ -110,7 +110,7 @@ long_description = io.open('README.rst', encoding='utf-8').read()
 
 METADATA = dict(
     name='django-allauth',
-    version='0.18.1-dev',
+    version='0.20.0-dev',
     author='Raymond Penners',
     author_email='raymond.penners@intenct.nl',
     description='Integrated set of Django applications addressing'
@@ -138,6 +138,7 @@ METADATA = dict(
         'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3.3',
+        'Programming Language :: Python :: 3.4',
         'Framework :: Django',
     ],
     packages=find_packages(exclude=['example']),
